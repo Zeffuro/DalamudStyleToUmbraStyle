@@ -1,3 +1,5 @@
+let currentName;
+
 function decodeGzipBase64(encodedString) {
     const trimmedText = encodedString.slice(3); // Remove the first three characters
     const bytesData = Uint8Array.from(atob(trimmedText), c => c.charCodeAt(0));
@@ -11,7 +13,7 @@ function encodeDeflateBase64(jsonString) {
     return btoa(String.fromCharCode(...compressedData));
 }
 
-function rgbaToInt(b, g, r, a) {
+function rgbaToInt(r, g, b, a) {
     r = Math.round(r * 255);
     g = Math.round(g * 255);
     b = Math.round(b * 255);
@@ -24,11 +26,36 @@ function intToRgba(int) {
     const r = ((int >> 16) & 255) / 255;
     const g = ((int >> 8) & 255) / 255;
     const b = (int & 255) / 255;
-    return `rgba(${b * 255}, ${g * 255}, ${r * 255}, ${a})`;
+    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
+}
+
+function rgbaToIntBGRA(r, g, b, a) {
+    // Swap red and blue for BGRA
+    return rgbaToInt(b, g, r, a);
+}
+
+function intToRgbaBGRA(int) {
+    const a = ((int >> 24) & 255) / 255;
+    const b = ((int >> 16) & 255) / 255;
+    const g = ((int >> 8) & 255) / 255;
+    const r = (int & 255) / 255;
+    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
 }
 
 function updateStyle2Json() {
-    const style2Json = JSON.stringify(style2Converted, null, 4);
+    // Swap red and blue for the final output
+    const style2Json = JSON.stringify(style2Converted, (key, value) => {
+        if (typeof value === 'number') {
+            return rgbaToIntBGRA(
+                ((value >> 16) & 255) / 255,
+                ((value >> 8) & 255) / 255,
+                (value & 255) / 255,
+                ((value >> 24) & 255) / 255
+            );
+        }
+        return value;
+    }, 4);
+
     document.getElementById('style2').value = style2Json;
     const encodedString = encodeDeflateBase64(style2Json);
     document.getElementById('encodedOutput').value = encodedString;
@@ -43,6 +70,7 @@ document.getElementById('decodeBtn').addEventListener('click', function() {
         alert('Invalid encoded string');
         console.error(e);
     }
+    document.getElementById('convertBtn').click();
 });
 
 let style2Converted = {};
@@ -64,9 +92,10 @@ document.getElementById('convertBtn').addEventListener('click', function() {
 
 function convertColors(style1) {
     const col = style1.col;
+    currentName = style1.name;
     const converted = {};
 
-    converted.Black = {
+    converted[currentName] = {
         "Window.Background": rgbaToInt(col.WindowBg.X, col.WindowBg.Y, col.WindowBg.Z, col.WindowBg.W),
         "Window.BackgroundLight": rgbaToInt(col.ChildBg.X, col.ChildBg.Y, col.ChildBg.Z, col.ChildBg.W),
         "Window.Border": rgbaToInt(col.Border.X, col.Border.Y, col.Border.Z, col.Border.W),
@@ -142,7 +171,7 @@ function convertColors(style1) {
 function createColorPickers() {
     const container = document.getElementById('colorPickers');
     container.innerHTML = '';
-    for (const [key, value] of Object.entries(style2Converted.Black)) {
+    for (const [key, value] of Object.entries(style2Converted[currentName])) {
         const rgbaColor = value ? intToRgba(value) : 'rgba(0, 0, 0, 0)';
 
         // Create a container for the color picker
@@ -193,15 +222,14 @@ function createColorPickers() {
         // Update the color value when the user selects a new color
         pickr.on('save', (color) => {
             const rgba = color.toRGBA();
-            style2Converted.Black[key] = rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]);
-            console.log(rgba, rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]));
+            style2Converted[currentName][key] = rgbaToInt(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, rgba[3]);
             updateStyle2Json();
         });
 
         // Update the color value when the user selects a new color
         pickr.on('change', (color) => {
             const rgba = color.toRGBA();
-            style2Converted.Black[key] = rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]);
+            style2Converted[currentName][key] = rgbaToInt(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, rgba[3]);
             updateStyle2Json();
         });
     }
