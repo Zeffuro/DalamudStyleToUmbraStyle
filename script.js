@@ -11,7 +11,7 @@ function encodeDeflateBase64(jsonString) {
     return btoa(String.fromCharCode(...compressedData));
 }
 
-function rgbaToInt(r, g, b, a) {
+function rgbaToInt(b, g, r, a) {
     r = Math.round(r * 255);
     g = Math.round(g * 255);
     b = Math.round(b * 255);
@@ -24,7 +24,7 @@ function intToRgba(int) {
     const r = ((int >> 16) & 255) / 255;
     const g = ((int >> 8) & 255) / 255;
     const b = (int & 255) / 255;
-    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
+    return `rgba(${b * 255}, ${g * 255}, ${r * 255}, ${a})`;
 }
 
 function updateStyle2Json() {
@@ -144,22 +144,66 @@ function createColorPickers() {
     container.innerHTML = '';
     for (const [key, value] of Object.entries(style2Converted.Black)) {
         const rgbaColor = value ? intToRgba(value) : 'rgba(0, 0, 0, 0)';
-        const colorPicker = document.createElement('input');
-        colorPicker.type = 'color';
-        colorPicker.className = 'color-picker';
-        colorPicker.value = rgbaColorToHex(rgbaColor);
-        colorPicker.dataset.key = key;
-        colorPicker.addEventListener('input', function() {
-            style2Converted.Black[this.dataset.key] = hexToRgbaInt(this.value);
-            updateStyle2Json();
-        });
+
+        // Create a container for the color picker
+        const pickerContainer = document.createElement('div');
+        pickerContainer.className = 'color-picker-container';
+
+        // Create a button to trigger the color picker
+        const colorPickerButton = document.createElement('button');
+        colorPickerButton.className = 'color-picker-button';
+        colorPickerButton.dataset.key = key;
+        pickerContainer.appendChild(colorPickerButton);
+
+        // Create a label for the color picker
         const labelContainer = document.createElement('div');
         labelContainer.className = 'label-color-picker';
         const label = document.createElement('label');
         label.textContent = key;
         labelContainer.appendChild(label);
-        labelContainer.appendChild(colorPicker);
+        labelContainer.appendChild(pickerContainer);
         container.appendChild(labelContainer);
+
+        // Initialize Pickr for this color picker
+        const pickr = Pickr.create({
+            el: colorPickerButton,
+            theme: 'classic', // or 'monolith', or 'nano'
+            default: rgbaColor,
+            comparison: false,
+            components: {
+                // Main components
+                preview: true,
+                opacity: true, 
+                hue: true,
+
+                // Input / output Options
+                interaction: { 
+                    hex: true,
+                    rgba: true,
+                    hsla: false,
+                    hsva: false,
+                    cmyk: false,
+                    input: true,
+                    clear: false,
+                    save: true
+                }
+            }
+        });
+
+        // Update the color value when the user selects a new color
+        pickr.on('save', (color) => {
+            const rgba = color.toRGBA();
+            style2Converted.Black[key] = rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]);
+            console.log(rgba, rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]));
+            updateStyle2Json();
+        });
+
+        // Update the color value when the user selects a new color
+        pickr.on('change', (color) => {
+            const rgba = color.toRGBA();
+            style2Converted.Black[key] = rgbaToInt(rgba[2], rgba[1], rgba[0], rgba[3]);
+            updateStyle2Json();
+        });
     }
 }
 
@@ -175,11 +219,6 @@ function hexToRgbaInt(hex) {
     const b = (bigint & 255) / 255;
     return rgbaToInt(r, g, b, 1);
 }
-
-// Initialize color pickers on load
-document.addEventListener('DOMContentLoaded', function() {
-    createColorPickers();
-});
 
 // Copy button functionality
 document.getElementById('copyBtn').addEventListener('click', function() {
